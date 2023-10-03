@@ -104,5 +104,55 @@ def generate_strangle_strikes_and_symbols(instrument: str, atm_strike: int, how_
                                            strangle_dict["pe_hedge_opt_symbol"]]
     return strangle_dict
 
+def get_merged_opt_symbol_df(df: pd.DataFrame, trading_symbols: list[str], curr_date: datetime.date,
+                             timeframe: str) -> tuple[bool, pd.DataFrame]:
+    """
+    Merges option symbol close price with given df
+    Args:
+        df(pd.DataFrame): given dataframe
+        trading_symbols(list[str]): iron condor info dictionary
+        curr_date(datetime.date): current date
+        timeframe(str): timeframe for resampling options df
+
+    Returns:
+        tuple[bool, pd.DataFrame]: returns df merged with option symbol close price and option symbol
+    """
+    is_symbol_missing = False
+    for opt_symbol in trading_symbols:
+        opt_symbol_col = f"{opt_symbol}_close"
+        if opt_symbol_col in df.columns:
+            continue
+        option_df = data.fetch_options_data_and_resample(opt_symbol, curr_date, curr_date, timeframe)
+        if option_df.empty:
+            is_symbol_missing = True
+            with open(os.path.join(os.getcwd(), "missing_symbols.txt"), "a") as f:
+                f.write(f"{curr_date} {opt_symbol}\n")
+        else:
+            df = pd.merge(df, option_df, on='date')
+    return is_symbol_missing, df
+
+
+def get_n_days_before_date(n, trading_dates, date_to_find):
+
+    left, right = 0, len(trading_dates) - 1
+    find_index = -1
+    while left <= right:
+        mid = (left + right) // 2
+        if trading_dates[mid] < date_to_find:
+            left = mid + 1
+        elif trading_dates[mid] > date_to_find:
+            right = mid - 1
+        else:
+            find_index = mid
+            break
+    if find_index == -1:
+        print(f"{date_to_find} doesn't exist in trading dates list")
+        return -1
+    else:
+        if (find_index - n) >= 0:
+            return trading_dates[find_index - n]
+        else:
+            print(f"{n} days before {date_to_find} doesn't exist")
+            return -1
 
 
